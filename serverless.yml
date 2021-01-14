@@ -1,0 +1,67 @@
+service: vpc-lambda-test
+
+frameworkVersion: '2'
+
+custom:
+  defaultStage: dev
+  apiKeys:
+    dev: 'YOUR_API_KEY1'
+    prod: 'YOUR_API_KEY2'
+
+provider:
+  name: aws
+  runtime: nodejs12.x
+  lambdaHashingVersion: 20201221
+
+  region: ap-northeast-1
+  logRetentionInDays: 5
+  stage: ${opt:stage, self:custom.defaultStage}
+
+  environment:
+    API_ENDPOINT:
+      {
+        'Fn::Join':
+          [
+            '',
+            [
+              'https://',
+              { 'Ref': 'ApiGatewayRestApi' },
+              '.execute-api.${self:provider.region}.amazonaws.com/${self:provider.stage}',
+            ],
+          ],
+      }
+
+  apiKeys:
+    - name: api-key-${self:provider.stage}
+      value: ${self:custom.apiKeys.${self:provider.stage}}
+
+functions:
+  getIpAddress:
+    handler: src/handler.getIpAddress
+    events:
+      - http:
+          path: getIpAddress
+          method: get
+          private: true
+    vpc:
+      securityGroupIds:
+        - !Ref PrivateSecurityGroup
+      subnetIds:
+        - !Ref PrivateSubnetA
+
+  testIpAddress:
+    handler: src/handler.testIpAddress
+    events:
+      - http:
+          path: testIpAddress
+          method: get
+          private: true
+    vpc:
+      securityGroupIds:
+        - !Ref PrivateSecurityGroup
+      subnetIds:
+        - !Ref PrivateSubnetA
+
+resources:
+  # VPC関連リソースの定義
+  - ${file(./resources/${self:provider.stage}/vpc.yml)}

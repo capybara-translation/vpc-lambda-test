@@ -1,0 +1,129 @@
+Resources:
+  # VPC
+  AppVpc:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.1.0.0/16
+      Tags:
+        - Key: Name
+          Value: ${self:service}-vpc-${self:provider.stage}
+
+  # インターネットゲートウェイ
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Name
+          Value: ${self:service}-igw-${self:provider.stage}
+
+  # VPCとインターネットゲートウェイの関連付け
+  VpcIgwAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref AppVpc
+      InternetGatewayId: !Ref InternetGateway
+
+  # Elastic IP (NATゲートウェイに設定する)
+  ElasticIpA:
+    Type: AWS::EC2::EIP
+    Properties:
+      Domain: vpc
+      Tags:
+        - Key: Name
+          Value: ${self:service}-eip-${self:provider.stage}
+
+  # NATゲートウェイ
+  NatGatewayA:
+    DependsOn: ElasticIpA
+    Type: AWS::EC2::NatGateway
+    Properties:
+      AllocationId: !GetAtt ElasticIpA.AllocationId
+      SubnetId: !Ref PublicSubnetA
+      Tags:
+        - Key: Name
+          Value: ${self:service}-nat-${self:provider.stage}
+
+  # ==================== パブリックサブネット関連の定義：開始 ==================== #
+  # パブリックサブネットA (NATゲートウェイを設置する)
+  PublicSubnetA:
+    DependsOn: AppVpc
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref AppVpc
+      CidrBlock: 10.1.1.0/24
+      Tags:
+        - Key: Name
+          Value: ${self:service}-public-subnet-A-${self:provider.stage}
+
+  # パブリックサブネットAに関連付けるルートテーブル
+  PublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref AppVpc
+      Tags:
+        - Key: Name
+          Value: ${self:service}-public-route-table-${self:provider.stage}
+
+  # パブリックルートテーブルに設定するルート (IGWにルーティング)
+  PublicRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+
+  # パブリックサブネットAとパブリックルートテーブルの関連付け
+  PublicSubnetAPublicRouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnetA
+      RouteTableId: !Ref PublicRouteTable
+  # ==================== パブリックサブネット関連の定義：終了 ==================== #
+
+  # ==================== プライベートサブネット関連の定義：開始 ==================== #
+  # プライベートサブネットA (Lambdaを設置する)
+  PrivateSubnetA:
+    DependsOn: AppVpc
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref AppVpc
+      CidrBlock: 10.1.10.0/24
+      Tags:
+        - Key: Name
+          Value: ${self:service}-private-subnet-A-${self:provider.stage}
+
+  # プライベートサブネットAに関連付けるルートテーブル
+  PrivateRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref AppVpc
+      Tags:
+        - Key: Name
+          Value: ${self:service}-private-route-table-${self:provider.stage}
+
+  # プライベートルートテーブルに設定するルート (NATにルーティング)
+  PrivateRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref PrivateRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref NatGatewayA
+
+  # プライベートサブネットAとプライベートルートテーブルの関連付け
+  PrivateSubnetAPrivateRouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PrivateSubnetA
+      RouteTableId: !Ref PrivateRouteTable
+  # ==================== プライベートサブネット関連の定義：終了 ==================== #
+
+  # セキュリティグループ
+  PrivateSecurityGroup:
+    DependsOn: AppVpc
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: '${self:service}: Security Group for Private Subnet A'
+      VpcId: !Ref AppVpc
+      Tags:
+        - Key: Name
+          Value: ${self:service}-private-security-group-${self:provider.stage}
