@@ -1,12 +1,18 @@
 service: vpc-lambda-test
+plugins:
+  - serverless-dotenv-plugin
 
 frameworkVersion: '2'
 
 custom:
   defaultStage: dev
   apiKeys:
-    dev: 'YOUR_API_KEY1'
-    prod: 'YOUR_API_KEY2'
+    dev: ${env:API_KEY_DEV}
+    prod: ${env:API_KEY_PROD}
+  dotenv:
+    include:
+      - MONGODB_URI
+      - MONGODB_NAME
 
 provider:
   name: aws
@@ -61,6 +67,27 @@ functions:
         - !Ref PrivateSecurityGroup
       subnetIds:
         - !Ref PrivateSubnetA
+
+  testMongo:
+    handler: src/handler.testMongo
+    events:
+      - http:
+          path: testMongo
+          method: get
+          private: true
+    vpc:
+      securityGroupIds:
+        - !Ref PrivateSecurityGroup
+      subnetIds:
+        - !Ref PrivateSubnetA
+
+  testMongoFail:
+    handler: src/handler.testMongoFail
+    events:
+      - http:
+          path: testMongoFail
+          method: get
+          private: true
 
 resources:
   # VPC関連リソースの定義
