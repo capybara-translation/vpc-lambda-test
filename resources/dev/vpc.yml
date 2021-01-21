@@ -50,6 +50,7 @@ Resources:
     Type: AWS::EC2::Subnet
     Properties:
       VpcId: !Ref AppVpc
+      AvailabilityZone: ${self:provider.region}a
       CidrBlock: 10.1.1.0/24
       Tags:
         - Key: Name
@@ -87,6 +88,7 @@ Resources:
     Type: AWS::EC2::Subnet
     Properties:
       VpcId: !Ref AppVpc
+      AvailabilityZone: ${self:provider.region}a
       CidrBlock: 10.1.10.0/24
       Tags:
         - Key: Name
